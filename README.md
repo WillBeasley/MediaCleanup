@@ -5,8 +5,8 @@ A utility script that lists all shows and movies in your Emby server that have n
 ## Features
 
 - Lists unwatched movies and TV shows
-- Tracks media size by integrating with Sonarr and Radarr
 - Whitelist users whose watch history should be preserved
+- Deletes media via Sonarr and Radarr API
 - Delete unwatched media automatically or interactively
 - Run as a one-time script or at scheduled intervals
 - Filter by specific media libraries
