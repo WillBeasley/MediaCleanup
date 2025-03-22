@@ -1,0 +1,24 @@
+version: '3'
+
+services:
+  media-cleanup:
+    build: .
+    container_name: media-cleanup
+    restart: unless-stopped
+    environment:
+      - EMBY_SERVER=http://emby:8096  # Change to your Emby server URL
+      - EMBY_API_KEY=your_api_key_here  # Change to your Emby API key
+      - DAYS=90
+      - WHITELIST=will,jane  # Comma-separated list of users to whitelist
+      - INTERVAL=24  # Run every 24 hours
+      - RUN_AT_START=true
+      - SONARR_URL=http://sonarr:8989  # Change to your Sonarr URL
+      - SONARR_API_KEY=your_sonarr_api_key  # Change to your Sonarr API key
+      - RADARR_URL=http://radarr:7878  # Change to your Radarr URL
+      - RADARR_API_KEY=your_radarr_api_key  # Change to your Radarr API key
+      - DELETE_MODE=none  # Options: none, interactive, all
+      - DELETE_FILES=false
+      - DRY_RUN=true
+      - LOG_LEVEL=INFO
+    volumes:
+      - /etc/localtime:/etc/localtime:ro  # Sync container time with host
