@@ -2,16 +2,20 @@ FROM python:3.9-slim
 
 WORKDIR /app
 
-# Install required packages
+# Copy requirements and install dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy script files
+# Copy the script and entrypoint
 COPY script.py .
 COPY docker-entrypoint.sh .
 
-# Set executable permissions
-RUN chmod +x docker-entrypoint.sh
+# Make entrypoint executable
+RUN chmod +x /app/docker-entrypoint.sh
 
-# Set the entrypoint
+# Set environment variables to ensure proper output handling
+ENV PYTHONUNBUFFERED=1
+ENV DOCKER_CONTAINER=1
+
+# Use the entrypoint script
 ENTRYPOINT ["/app/docker-entrypoint.sh"]

@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# Set environment variables for Python to ensure immediate output flushing
+export PYTHONUNBUFFERED=1
+export DOCKER_CONTAINER=1
+
 # Build command-line arguments from environment variables
 ARGS=""
 

@@ -7,6 +7,7 @@ from typing import List, Dict, Any, Optional, Set
 from requests.exceptions import RequestException
 import time
 import signal
+import os
 
 #!/usr/bin/env python3
 """
@@ -17,13 +18,25 @@ Can run as a one-time script or at scheduled intervals.
 """
 
 
-# Configure logging
+# Configure logging - updated to remove milliseconds
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
+    datefmt='%Y-%m-%d %H:%M:%S',  # Format without milliseconds
+    force=True  # Ensure logging configuration is applied even if previously configured
 )
 logger = logging.getLogger(__name__)
+
+# Force unbuffered output for Docker compatibility
+if os.environ.get('PYTHONUNBUFFERED') != '1':
+    # Auto-flush stdout
+    os.environ['PYTHONUNBUFFERED'] = '1'
+    
+# Add helper function for print with flush
+def print_flush(*args, **kwargs):
+    """Print with flush=True to ensure output is immediately visible."""
+    kwargs['flush'] = True
+    print(*args, **kwargs)
 
 class EmbyClient:
     def __init__(self, server_url: str, api_key: str, whitelisted_users: Set[str] = None):
@@ -649,6 +662,12 @@ def run_scheduled(args, interval_hours):
         logger.info("Running script immediately due to --run-at-start flag")
         process_unwatched_media(args)
         last_run = datetime.datetime.now()
+        # Add a clear separator after each run
+        print_flush("\n" + "="*50)
+        print_flush(f"END OF RUN: {last_run.strftime('%Y-%m-%d %H:%M:%S')}")
+        print_flush(f"NEXT RUN SCHEDULED: {(last_run + datetime.timedelta(hours=interval_hours)).strftime('%Y-%m-%d %H:%M:%S')}")
+        print_flush("="*50 + "\n")
+        sys.stdout.flush()
     
     try:
         while not stop_event["stop"]:
@@ -664,17 +683,17 @@ def run_scheduled(args, interval_hours):
                     logger.info(f"Running scheduled execution (interval: {interval_hours} hours)")
                     process_unwatched_media(args)
                     last_run = now
+                    # Add a clear separator after each run
+                    print_flush("\n" + "="*50)
+                    print_flush(f"END OF RUN: {last_run.strftime('%Y-%m-%d %H:%M:%S')}")
+                    print_flush(f"NEXT RUN SCHEDULED: {(last_run + datetime.timedelta(hours=interval_hours)).strftime('%Y-%m-%d %H:%M:%S')}")
+                    print_flush("="*50 + "\n")
+                    sys.stdout.flush()
                 else:
                     # Log time until next run
                     hours, remainder = divmod(time_until_next_run.total_seconds(), 3600)
                     minutes, seconds = divmod(remainder, 60)
                     logger.debug(f"Next run in: {int(hours)}h {int(minutes)}m {int(seconds)}s")
-            else:
-                # First run (if --run-at-start was not specified)
-                next_run = now + datetime.timedelta(hours=interval_hours)
-                time_until_next_run = next_run - now
-                logger.info(f"First run scheduled in {interval_hours} hours")
-                last_run = now - datetime.timedelta(hours=interval_hours)  # Set to trigger next check
             
             # Sleep for a bit to avoid consuming CPU
             # Use a shorter sleep interval and check stop_event
@@ -867,37 +886,41 @@ def process_unwatched_media(args):
             movies.sort(key=lambda x: x['Size'], reverse=True)
             shows.sort(key=lambda x: x['Size'], reverse=True)
         
-        # Print results
-        print("\n" + "="*50)
-        print(f"UNWATCHED MEDIA (Not watched in the last {days} days)")
-        print("="*50)
+        # Calculate the total size (combined movies and shows)
+        total_size = total_movie_size + total_show_size
         
-        print(f"\nUNWATCHED MOVIES ({len(movies)}) - Total size: {format_size(total_movie_size)}")
-        print("-" * 50)
+        # Print results - always do this even in interval mode
+        print_flush("\n" + "="*50)
+        timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        print_flush(f"UNWATCHED MEDIA REPORT ({timestamp})")
+        print_flush(f"Not watched in the last {days} days")
+        print_flush("="*50)
+        
+        print_flush(f"\nUNWATCHED MOVIES ({len(movies)}) - Total size: {format_size(total_movie_size)}")
+        print_flush("-" * 50)
         for i, movie in enumerate(movies, 1):
             size_info = f" - {format_size(movie['Size'])}" if movie['Size'] > 0 else ""
-            print(f"{i}. {movie['Name']}{size_info}")
+            print_flush(f"{i}. {movie['Name']}{size_info}")
         
-        print(f"\nUNWATCHED SHOWS ({len(shows)}) - Total size: {format_size(total_show_size)}")
-        print("-" * 50)
+        print_flush(f"\nUNWATCHED SHOWS ({len(shows)}) - Total size: {format_size(total_show_size)}")
+        print_flush("-" * 50)
         for i, show in enumerate(shows, 1):
             size_info = f" - {format_size(show['Size'])}" if show['Size'] > 0 else ""
-            print(f"{i}. {show['Name']}{size_info}")
+            print_flush(f"{i}. {show['Name']}{size_info}")
         
         # Print grand total
-        total_size = total_movie_size + total_show_size
-        print("\n" + "="*50)
-        print(f"TOTAL UNWATCHED MEDIA SIZE: {format_size(total_size)}")
-        print("="*50)
+        print_flush("\n" + "="*50)
+        print_flush(f"TOTAL UNWATCHED MEDIA SIZE: {format_size(total_size)}")
+        print_flush("="*50)
         
         # Handle deletion if requested
         if args.delete_mode != 'none':
-            print("\n" + "="*50)
+            print_flush("\n" + "="*50)
             if args.dry_run:
-                print("DRY RUN: Items that would be deleted (no actual deletion will occur)")
+                print_flush("DRY RUN: Items that would be deleted (no actual deletion will occur)")
             else:
-                print("DELETION MODE")
-            print("="*50)
+                print_flush("DELETION MODE")
+            print_flush("="*50)
             
             deleted_movie_size = 0
             deleted_show_size = 0
@@ -906,7 +929,7 @@ def process_unwatched_media(args):
             
             # Process movies
             if radarr_client:
-                print("\nMOVIES:")
+                print_flush("\nMOVIES:")
                 for i, movie in enumerate(movies, 1):
                     if movie['Id'] is None:
                         continue
@@ -918,27 +941,29 @@ def process_unwatched_media(args):
                         # Skip interactive mode when running in scheduled/interval mode
                         if args.interval:
                             logger.info("Skipping interactive deletion in scheduled mode")
-                            break
+                            # Still print what would be deleted for visibility
+                            print_flush(f"Would delete (if not in interval mode): {movie['Name']} - {format_size(movie['Size'])}")
+                            continue
                         should_delete = prompt_for_deletion(movie['Name'], "Movie", format_size(movie['Size']))
                     
                     if should_delete:
                         if args.dry_run:
-                            print(f"Would delete: {movie['Name']} - {format_size(movie['Size'])}")
+                            print_flush(f"Would delete: {movie['Name']} - {format_size(movie['Size'])}")
                             deleted_movie_size += movie['Size']
                             deleted_movie_count += 1
                         else:
-                            print(f"Deleting: {movie['Name']} - {format_size(movie['Size'])}")
+                            print_flush(f"Deleting: {movie['Name']} - {format_size(movie['Size'])}")
                             success = radarr_client.delete_movie(movie['Id'], args.delete_files)
                             if success:
                                 deleted_movie_size += movie['Size']
                                 deleted_movie_count += 1
-                                print(f"Successfully deleted movie: {movie['Name']}")
+                                print_flush(f"Successfully deleted movie: {movie['Name']}")
                             else:
-                                print(f"Failed to delete movie: {movie['Name']}")
+                                print_flush(f"Failed to delete movie: {movie['Name']}")
             
             # Process shows
             if sonarr_client:
-                print("\nSHOWS:")
+                print_flush("\nSHOWS:")
                 for i, show in enumerate(shows, 1):
                     if show['Id'] is None:
                         continue
@@ -950,45 +975,53 @@ def process_unwatched_media(args):
                         # Skip interactive mode when running in scheduled/interval mode
                         if args.interval:
                             logger.info("Skipping interactive deletion in scheduled mode")
-                            break
+                            # Still print what would be deleted for visibility
+                            print_flush(f"Would delete (if not in interval mode): {show['Name']} - {format_size(show['Size'])}")
+                            continue
                         should_delete = prompt_for_deletion(show['Name'], "Show", format_size(show['Size']))
                     
                     if should_delete:
                         if args.dry_run:
-                            print(f"Would delete: {show['Name']} - {format_size(show['Size'])}")
+                            print_flush(f"Would delete: {show['Name']} - {format_size(show['Size'])}")
                             deleted_show_size += show['Size']
                             deleted_show_count += 1
                         else:
-                            print(f"Deleting: {show['Name']} - {format_size(show['Size'])}")
+                            print_flush(f"Deleting: {show['Name']} - {format_size(show['Size'])}")
                             success = sonarr_client.delete_series(show['Id'], args.delete_files)
                             if success:
                                 deleted_show_size += show['Size']
                                 deleted_show_count += 1
-                                print(f"Successfully deleted show: {show['Name']}")
+                                print_flush(f"Successfully deleted show: {show['Name']}")
                             else:
-                                print(f"Failed to delete show: {show['Name']}")
+                                print_flush(f"Failed to delete show: {show['Name']}")
             
             # Print deletion summary
-            print("\n" + "="*50)
+            print_flush("\n" + "="*50)
             if args.dry_run:
-                print("DRY RUN SUMMARY - What would be deleted:")
+                print_flush("DRY RUN SUMMARY - What would be deleted:")
             else:
-                print("DELETION SUMMARY:")
-            print("="*50)
-            print(f"Movies: {deleted_movie_count} ({format_size(deleted_movie_size)})")
-            print(f"Shows: {deleted_show_count} ({format_size(deleted_show_size)})")
-            print(f"Total: {deleted_movie_count + deleted_show_count} items ({format_size(deleted_movie_size + deleted_show_size)})")
+                print_flush("DELETION SUMMARY:")
+            print_flush("="*50)
+            print_flush(f"Movies: {deleted_movie_count} ({format_size(deleted_movie_size)})")
+            print_flush(f"Shows: {deleted_show_count} ({format_size(deleted_show_size)})")
+            print_flush(f"Total: {deleted_movie_count + deleted_show_count} items ({format_size(deleted_movie_size + deleted_show_size)})")
         
         # Only log completion in scheduled mode; otherwise the main function handles this
         if args.interval:
             logger.info("Scheduled execution completed successfully")
             # Add an extra separator to distinguish between runs
-            print("\n" + "="*50)
-            print(f"END OF RUN: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-            print("="*50 + "\n")
+            print_flush("\n" + "="*50)
+            print_flush(f"END OF RUN: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            print_flush("="*50 + "\n")
+        
+        # Ensure all output is flushed
+        sys.stdout.flush()
+        sys.stderr.flush()
     
     except Exception as e:
         logger.error(f"Error processing unwatched media: {e}", exc_info=True)
+        # Ensure error output is flushed
+        sys.stderr.flush()
 
 def main():
     """Main function to run the script."""
@@ -998,6 +1031,24 @@ def main():
     # Set logging level based on argument
     logging.getLogger().setLevel(getattr(logging, args.log_level))
     
+    # Clear existing handlers to prevent duplicate logging
+    root_logger = logging.getLogger()
+    for handler in root_logger.handlers[:]:
+        root_logger.removeHandler(handler)
+    
+    # Add a single handler with proper formatting
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setFormatter(logging.Formatter(
+        '%(asctime)s - %(levelname)s - %(message)s',
+        '%Y-%m-%d %H:%M:%S'  # Format without milliseconds
+    ))
+    console_handler.flush = lambda: True  # Force handler to flush
+    root_logger.addHandler(console_handler)
+    
+    # No need for Docker-specific handling since we're using a consistent setup
+    if os.environ.get('DOCKER_CONTAINER', '').lower() in ('1', 'true', 'yes'):
+        logger.info("Running in Docker environment")
+    
     logger.info("Starting Emby Media Cleanup Script")
     
     try:
@@ -1006,12 +1057,13 @@ def main():
             # Create Emby client
             client = EmbyClient(args.server, args.api_key)
             libraries = client.get_libraries()
-            print("\n=== AVAILABLE LIBRARIES ===")
+            print_flush("\n=== AVAILABLE LIBRARIES ===")
             for i, library in enumerate(libraries, 1):
                 library_name = library.get('Name', 'Unknown')
                 library_type = library.get('LibraryOptions', {}).get('TypeOptions', [{}])[0].get('Type', 'Unknown')
-                print(f"{i}. {library_name} (Type: {library_type})")
-            print("\nUse --libraries option to specify which libraries to check.")
+                print_flush(f"{i}. {library_name} (Type: {library_type})")
+            print_flush("\nUse --libraries option to specify which libraries to check.")
+            sys.stdout.flush()
             return
             
         # Check if we're running in interval mode
