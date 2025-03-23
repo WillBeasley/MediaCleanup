@@ -33,7 +33,6 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=ref,event=release
             type=raw,value=${{ github.event.release.tag_name }}
 
       - name: Build and push Docker image
